@@ -13,7 +13,6 @@ type StoredSettings = {
   swipeSensitivity: SensitivityLevel
   cooldown: CooldownLevel
   debugMode: boolean
-  pointerModeEnabled: boolean
 }
 
 const DEFAULT_STORED: StoredSettings = {
@@ -21,7 +20,6 @@ const DEFAULT_STORED: StoredSettings = {
   swipeSensitivity: 'medium',
   cooldown: 'medium',
   debugMode: false,
-  pointerModeEnabled: false,
 }
 
 function readStored(): StoredSettings {
@@ -34,7 +32,6 @@ function readStored(): StoredSettings {
       swipeSensitivity: parsed.swipeSensitivity ?? DEFAULT_STORED.swipeSensitivity,
       cooldown: parsed.cooldown ?? DEFAULT_STORED.cooldown,
       debugMode: parsed.debugMode ?? DEFAULT_STORED.debugMode,
-      pointerModeEnabled: parsed.pointerModeEnabled ?? DEFAULT_STORED.pointerModeEnabled,
     }
   } catch {
     return DEFAULT_STORED
@@ -66,13 +63,11 @@ export function useGestureSettings() {
     swipeSensitivity: settings.swipeSensitivity,
     cooldown: settings.cooldown,
     debugMode: settings.debugMode,
-    pointerModeEnabled: settings.pointerModeEnabled,
     gestureConfig,
     setGestureEnabled: (gestureEnabled: boolean) => patch({ gestureEnabled }),
     setSwipeSensitivity: (swipeSensitivity: SensitivityLevel) => patch({ swipeSensitivity }),
     setCooldown: (cooldown: CooldownLevel) => patch({ cooldown }),
     setDebugMode: (debugMode: boolean) => patch({ debugMode }),
-    setPointerModeEnabled: (pointerModeEnabled: boolean) => patch({ pointerModeEnabled }),
     toggleDebugMode: () => {
       setSettings((current) => {
         const next = { ...current, debugMode: !current.debugMode }

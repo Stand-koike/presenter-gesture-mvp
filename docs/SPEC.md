@@ -31,14 +31,27 @@ Presenters using a laptop in a room where a conventional clicker is inconvenient
 - OK sign -> enter zoom
 - Fist -> exit zoom (zoom mode only)
 - In zoom mode, hand movement -> pan
-- Pointer mode (optional): index finger tip -> laser dot on slide
+- Laser Pointer (optional): index finger tip -> laser dot on slide (internal: Pointer mode / `MOVE_POINTER`)
 
-## 7. Pointer mode (Phase 5-A)
-- Toggle: Presentation UI checkbox or `P` key
-- Default: OFF
-- Normalized coordinates (0–1) mapped to slide overlay
+## 6.1 Zoom (Phase 5-D-2)
+- Enter: Keyboard `Z` or OK sign gesture
+- Default zoom scale: **2x** (MVP; range 1x–3x in constants, no in-session scale change UI)
+- Pan: wrist movement in zoom mode only; swipe navigation is disabled in zoom mode
+- Exit: Fist gesture (zoom mode only) or `Escape` (first priority while zoomed)
+- On exit: `PresentationMode` returns to `PRESENTATION`, scale **1x**, pan **(0, 0)**
+- **On NEXT/PREV (any path through `dispatch`)**: if zoomed, zoom is fully reset before the page changes
+- **On enter zoom**: pointer overlay hidden; runtime InteractionState set to `NORMAL` (Pointer mode off)
+- Zoom uses `PresentationMode` / Controller state — **not** `InteractionState` (`NORMAL` | `POINTER` only)
+
+## 7. Laser Pointer (Phase 5-A / 5-E)
+- User-facing name: **Laser Pointer**; internal state remains `InteractionState === 'POINTER'`
+- Toggle: Presentation UI checkbox, `P` key, or V sign (`TOGGLE_POINTER` intent)
+- Default at presentation entry: **NORMAL (off)**; not restored from localStorage
+- Normalized coordinates (0–1) mapped to slide overlay (`SlidePointer` DOM overlay)
+- Visual: small red core, subtle glow, dark edge ring for contrast on light slides (Phase 5-E)
 - Hidden in zoom mode and when no hand is detected
-- Persisted in localStorage with other gesture settings
+- Entering zoom turns Laser Pointer off (InteractionState `NORMAL`)
+- Laser Pointer toggle (`P`, UI, V sign) is ignored while `PresentationMode === 'ZOOM'`
 
 ## 8. Black Screen (Phase 5-C-2)
 - Toggle: `B` key or Presentation UI button

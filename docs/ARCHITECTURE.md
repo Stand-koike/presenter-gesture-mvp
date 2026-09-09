@@ -63,6 +63,73 @@ Keyboard / UI button
 - Pointer visibility is saved before entering black screen and restored on exit when appropriate.
 - No slide fade transition is applied to black screen toggles.
 
+## Interaction State (Phase 5-C-3)
+
+Runtime input mode lives in `src/features/interaction/`, separate from Presentation Controller.
+
+```text
+GestureRecognizer
+  → interactionRouter.routeInteractionCommands()
+  → PresentationCommand
+  → dispatch()
+```
+
+- `InteractionState`: `NORMAL` | `POINTER` | `NAVIGATION` | `ANNOTATION` (latter two reserved)
+- Canonical pointer-on state: `InteractionState === 'POINTER'`
+- `NORMAL`: navigation gestures (swipe, OK, zoom entry) active; pointer tracking inactive
+- `POINTER`: `MOVE_POINTER` only; navigation gestures gated in recognizer + router
+- V sign (2 fingers) + 400ms hold toggles `NORMAL` ↔ `POINTER` via `observeInteractionGesture()` (independent from `observe()`)
+- **Presentation entry always starts with `InteractionState === 'NORMAL'`** — pointer mode is not restored from localStorage
+- Pointer mode changes only during a session via P key / UI / V sign (`TOGGLE_POINTER` intent)
+- Black Screen and Zoom (`PresentationMode`) are unchanged and orthogonal
+
+### Zoom behavior (Phase 5-D-2)
+
+- Enter: Keyboard `Z` or OK sign → `ENTER_ZOOM` → default **2x** scale
+- Exit: Fist or `Escape` → scale 1, pan 0
+- **NEXT/PREV via `dispatch`**: if `PresentationMode === 'ZOOM'`, `resetZoomState()` runs before page change (same end state as exit zoom)
+- **Enter zoom**: `hidePointer()` + `onEnterZoom()` callback → InteractionState `NORMAL` (Pointer mode off)
+- **Laser toggle during zoom**: `TOGGLE_POINTER` intent resolves to no-op (`P`, UI); V sign is inactive in ZOOM mode
+- Zoom pan/swipe gating remains in `GestureRecognizer`; page-turn zoom reset is centralized in `usePresentationController.dispatch()`
+
+### Pointer mode vs persistent settings (Phase 5-C-10)
+
+```text
+useGestureSettings (localStorage)
+  → gesture configuration only (sensitivity, cooldown, debug, gesture on/off)
+
+useInteractionState
+  → runtime interaction mode (NORMAL | POINTER)
+  → always NORMAL when PresentationViewer mounts
+```
+
+Pointer runtime state is **not** written to or read from localStorage.
+
+### Laser Pointer visual (Phase 5-E)
+
+- User-facing UX name: **Laser Pointer**; code identifiers unchanged (`POINTER`, `MOVE_POINTER`, `SlidePointer`)
+- Rendered as a DOM overlay (`SlidePointer` + `.slide-pointer` CSS) inside `.slide-stage` (same transform as zoom/pan)
+- No Intent/Command/Recognizer changes; visual polish and UI labels only
+- No pulse, trail, or animation; position follows existing EMA + `MOVE_POINTER` stream with no CSS transition
+
+## Presentation Intent Layer (Phase 5-C-5)
+
+Discrete user actions flow through `src/features/intent/` before mutating state:
+
+```text
+Input / Gesture
+  → PresentationIntent (no side effects)
+  → resolvePresentationIntent(context)
+  → ResolvedPresentationIntent
+  → applyPresentationIntent(actions)
+  → InteractionState change and/or dispatch()
+```
+
+- Interaction intents (e.g. `TOGGLE_POINTER`) are resolved against current `InteractionState`
+- Presentation intents wrap existing `PresentationCommand` values (no duplicate command strings)
+- Streaming commands (`MOVE_POINTER`, `PAN`) bypass the intent layer: `interactionRouter` → `dispatch()`
+- P key, UI checkbox, and V sign all emit the same `TOGGLE_POINTER` interaction intent
+
 ## Security
 Electron renderer runs with:
 - contextIsolation: true

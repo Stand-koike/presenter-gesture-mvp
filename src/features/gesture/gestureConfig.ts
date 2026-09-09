@@ -20,6 +20,10 @@ export type GestureConfig = {
     foldPalmRatio: number
     stableFrames: number
   }
+  vSign: {
+    holdMs: number
+    stableFrames: number
+  }
   pan: {
     sensitivityX: number
     sensitivityY: number
@@ -55,6 +59,10 @@ export const DEFAULT_GESTURE_CONFIG: GestureConfig = {
   fist: {
     holdMs: 400,
     foldPalmRatio: 0.55,
+    stableFrames: 3,
+  },
+  vSign: {
+    holdMs: 400,
     stableFrames: 3,
   },
   pan: {

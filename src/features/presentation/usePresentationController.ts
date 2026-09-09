@@ -10,6 +10,8 @@ import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from './zoomConstants'
 
 type Options = {
   onExit: () => void
+  /** Called when zoom mode is entered (Keyboard Z / OK sign). Clears InteractionState pointer mode. */
+  onEnterZoom?: () => void
 }
 
 const POINTER_EPSILON = 0.002
@@ -18,7 +20,7 @@ const POINTER_EPSILON = 0.002
  * Presentation Controller.
  * All slide navigation, zoom/pan, pointer, and black screen go through dispatch().
  */
-export function usePresentationController({ onExit }: Options) {
+export function usePresentationController({ onExit, onEnterZoom }: Options) {
   const [page, setPage] = useState(1)
   const [pageCount, setPageCountState] = useState(0)
   const [mode, setMode] = useState<PresentationMode>('PRESENTATION')
@@ -39,6 +41,8 @@ export function usePresentationController({ onExit }: Options) {
   const pointerVisibleBeforeBlackRef = useRef(false)
   const isBlackScreenRef = useRef(false)
   const viewportRef = useRef<SlideViewport | null>(null)
+  const onEnterZoomRef = useRef(onEnterZoom)
+  onEnterZoomRef.current = onEnterZoom
 
   const hidePointer = useCallback(() => {
     if (!pointerVisibleRef.current) return
@@ -83,6 +87,16 @@ export function usePresentationController({ onExit }: Options) {
     setPanY(clamped.y)
   }, [])
 
+  const resetZoomState = useCallback(() => {
+    modeRef.current = 'PRESENTATION'
+    zoomRef.current = MIN_ZOOM
+    panRef.current = { x: 0, y: 0 }
+    setMode('PRESENTATION')
+    setZoomScale(MIN_ZOOM)
+    setPanX(0)
+    setPanY(0)
+  }, [])
+
   const dispatch = useCallback((command: PresentationCommand) => {
     if (isMovePointerCommand(command)) {
       if (isBlackScreenRef.current || modeRef.current !== 'PRESENTATION') return
@@ -119,6 +133,7 @@ export function usePresentationController({ onExit }: Options) {
 
     switch (command) {
       case 'NEXT_SLIDE':
+        if (modeRef.current === 'ZOOM') resetZoomState()
         setPage((current) => {
           const total = pageCountRef.current
           if (total <= 0) return current
@@ -126,11 +141,13 @@ export function usePresentationController({ onExit }: Options) {
         })
         break
       case 'PREVIOUS_SLIDE':
+        if (modeRef.current === 'ZOOM') resetZoomState()
         setPage((current) => Math.max(1, current - 1))
         break
       case 'ENTER_ZOOM': {
         if (isBlackScreenRef.current) return
         hidePointer()
+        onEnterZoomRef.current?.()
         const scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, DEFAULT_ZOOM))
         modeRef.current = 'ZOOM'
         zoomRef.current = scale
@@ -139,13 +156,7 @@ export function usePresentationController({ onExit }: Options) {
         break
       }
       case 'EXIT_ZOOM':
-        modeRef.current = 'PRESENTATION'
-        zoomRef.current = MIN_ZOOM
-        panRef.current = { x: 0, y: 0 }
-        setMode('PRESENTATION')
-        setZoomScale(MIN_ZOOM)
-        setPanX(0)
-        setPanY(0)
+        resetZoomState()
         break
       case 'TOGGLE_BLACK_SCREEN':
         if (isBlackScreenRef.current) exitBlackScreen()
@@ -155,7 +166,7 @@ export function usePresentationController({ onExit }: Options) {
         onExit()
         break
     }
-  }, [enterBlackScreen, exitBlackScreen, hidePointer, onExit])
+  }, [enterBlackScreen, exitBlackScreen, hidePointer, onExit, resetZoomState])
 
   return {
     page,

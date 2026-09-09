@@ -30,7 +30,7 @@ export function GestureSettingsPanel({
           checked={pointerModeEnabled}
           onChange={(e) => onPointerModeChange(e.target.checked)}
         />
-        <span>Pointer Mode (P)</span>
+        <span>Laser Pointer (P)</span>
       </label>
       <label className="gesture-settings__row">
         <span>Swipe Sensitivity</span>

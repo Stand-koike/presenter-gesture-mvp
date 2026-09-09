@@ -12,6 +12,8 @@ import {
   WRIST_LANDMARK_INDEX,
 } from './handLandmarkerConfig'
 import { emaPoint } from './smoothing'
+import type { InteractionState } from '../interaction/interactionState'
+import { isPointerInteraction } from '../interaction/interactionState'
 
 export type GesturePhase =
   | 'idle'
@@ -38,7 +40,7 @@ export type GestureDebugSnapshot = {
   handDetected: boolean
   lastCommand: string | null
   panActive: boolean
-  heldGesture: 'ok' | 'fist' | null
+  heldGesture: 'ok' | 'fist' | 'v' | null
   swipeDx: number
   swipeSamples: number
   cooldownRemainingMs: number
@@ -47,7 +49,12 @@ export type GestureDebugSnapshot = {
   pointerX: number | null
   pointerY: number | null
   pointerVisible: boolean
+  vSignDetected: boolean
+  vSignHoldElapsedMs: number | null
+  interactionCooldownRemainingMs: number
 }
+
+export type InteractionGestureResult = 'toggle_pointer' | null
 
 const INDEX = { tip: 8, mcp: 5 }
 const MIDDLE = { tip: 12, mcp: 9 }
@@ -62,7 +69,7 @@ export class GestureRecognizer {
   private cooldownUntil = 0
   private lastCommand: PresentationCommand | null = null
   private panActive = false
-  private heldGesture: 'ok' | 'fist' | null = null
+  private heldGesture: 'ok' | 'fist' | 'v' | null = null
   private prevMode: PresentationMode = 'PRESENTATION'
   private lastSwipeDx = 0
   private lastHandX: number | null = null
@@ -74,6 +81,12 @@ export class GestureRecognizer {
   private fistHoldStart: number | null = null
   private fistLatched = false
   private fistStableFrames = 0
+  private vSignHoldStart: number | null = null
+  private vSignLatched = false
+  private vSignStableFrames = 0
+  private interactionCooldownUntil = 0
+  private vSignDetected = false
+  private vSignHoldElapsedMs: number | null = null
 
   private prevWrist: { x: number; y: number } | null = null
   private panHistory: { dx: number; dy: number }[] = []
@@ -96,10 +109,24 @@ export class GestureRecognizer {
     landmarks: LandmarkPoint[] | null | undefined,
     now: number,
     mode: PresentationMode,
+    interactionState: InteractionState = 'NORMAL',
   ): PresentationCommand | null {
     if (this.prevMode !== mode) {
       this.resetMotionState()
       this.prevMode = mode
+    }
+
+    if (isPointerInteraction(interactionState) && mode === 'PRESENTATION') {
+      this.samples = []
+      this.lastSwipeDx = 0
+      this.heldGesture = null
+      this.resetPoseHoldState()
+      this.prevWrist = null
+      this.panHistory = []
+      this.panEma = { dx: 0, dy: 0 }
+      this.panActive = false
+      this.phase = 'idle'
+      return null
     }
 
     const inDiscreteCooldown = now < this.cooldownUntil
@@ -193,15 +220,77 @@ export class GestureRecognizer {
       pointerX: this.lastPointerX,
       pointerY: this.lastPointerY,
       pointerVisible: this.pointerSentVisible,
+      vSignDetected: this.vSignDetected,
+      vSignHoldElapsedMs: this.vSignHoldElapsedMs,
+      interactionCooldownRemainingMs: Math.max(0, this.interactionCooldownUntil - now),
     }
+  }
+
+  /**
+   * Interaction gestures (e.g. V sign toggle). Independent from navigation observe().
+   * Active only in PRESENTATION presentation mode.
+   */
+  observeInteractionGesture(
+    landmarks: LandmarkPoint[] | null | undefined,
+    now: number,
+    mode: PresentationMode,
+  ): InteractionGestureResult {
+    this.vSignDetected = false
+    this.vSignHoldElapsedMs = null
+
+    if (mode !== 'PRESENTATION') {
+      this.resetVSignHoldState()
+      return null
+    }
+
+    if (now < this.interactionCooldownUntil) {
+      if (landmarks && isVSign(landmarks, this.config)) {
+        this.vSignDetected = true
+      } else {
+        this.resetVSignHoldState()
+      }
+      return null
+    }
+
+    if (!landmarks) {
+      this.resetVSignHoldState()
+      return null
+    }
+
+    if (!isVSign(landmarks, this.config)) {
+      this.resetVSignHoldState()
+      return null
+    }
+
+    this.vSignDetected = true
+    this.heldGesture = 'v'
+    this.vSignStableFrames += 1
+    if (this.vSignStableFrames < this.config.vSign.stableFrames) {
+      return null
+    }
+
+    if (this.vSignLatched) {
+      return null
+    }
+
+    if (this.vSignHoldStart == null) this.vSignHoldStart = now
+    this.vSignHoldElapsedMs = now - this.vSignHoldStart
+    if (this.vSignHoldElapsedMs >= this.config.vSign.holdMs) {
+      this.vSignLatched = true
+      this.vSignHoldStart = null
+      this.vSignHoldElapsedMs = null
+      this.interactionCooldownUntil = now + this.config.discreteCooldownMs
+      return 'toggle_pointer'
+    }
+    return null
   }
 
   observePointer(
     landmarks: LandmarkPoint[] | null | undefined,
     mode: PresentationMode,
-    pointerModeEnabled: boolean,
+    interactionState: InteractionState,
   ): MovePointerCommand | null {
-    if (!pointerModeEnabled || mode !== 'PRESENTATION') {
+    if (!isPointerInteraction(interactionState) || mode !== 'PRESENTATION') {
       return this.hidePointerCommand()
     }
 
@@ -345,6 +434,14 @@ export class GestureRecognizer {
     this.heldGesture = isFist(hand, this.config) ? 'fist' : isOkSign(hand, this.config) ? 'ok' : null
   }
 
+  private resetVSignHoldState() {
+    this.vSignHoldStart = null
+    this.vSignLatched = false
+    this.vSignStableFrames = 0
+    this.vSignHoldElapsedMs = null
+    if (this.heldGesture === 'v') this.heldGesture = null
+  }
+
   private resetOkHoldState() {
     this.okHoldStart = null
     this.okLatched = false
@@ -375,6 +472,7 @@ export class GestureRecognizer {
   private resetHandTracking() {
     this.samples = []
     this.resetPoseHoldState()
+    this.resetVSignHoldState()
     this.heldGesture = null
     this.prevWrist = null
     this.panHistory = []
@@ -502,6 +600,16 @@ function isFingerFolded(
   config: GestureConfig,
 ): boolean {
   return distance(hand[finger.tip], hand[finger.mcp]) < palmSize(hand, config) * config.fist.foldPalmRatio
+}
+
+function isVSign(hand: LandmarkPoint[], config: GestureConfig): boolean {
+  if (hand.length < 21) return false
+  return (
+    isFingerExtended(hand, INDEX, config) &&
+    isFingerExtended(hand, MIDDLE, config) &&
+    isFingerFolded(hand, RING, config) &&
+    isFingerFolded(hand, PINKY, config)
+  )
 }
 
 function isOkSign(hand: LandmarkPoint[], config: GestureConfig): boolean {

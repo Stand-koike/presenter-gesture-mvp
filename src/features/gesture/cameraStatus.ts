@@ -16,7 +16,7 @@ export type GestureRuntimeSnapshot = {
   handX: number | null
   handY: number | null
   phase: string
-  heldGesture: 'ok' | 'fist' | null
+  heldGesture: 'ok' | 'fist' | 'v' | null
   lastCommand: string | null
   swipeDx: number
   swipeSamples: number
@@ -25,6 +25,9 @@ export type GestureRuntimeSnapshot = {
   pointerX: number | null
   pointerY: number | null
   pointerVisible: boolean
+  vSignDetected: boolean
+  vSignHoldElapsedMs: number | null
+  interactionCooldownRemainingMs: number
 }
 
 export function cameraStatusLabel(status: CameraStatus, gestureEnabled: boolean): string {

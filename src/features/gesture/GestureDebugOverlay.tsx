@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { PresentationMode } from '../presentation/commands'
 import type { SlideCacheDebug } from '../presentation/useSlidePageCache'
+import type { InteractionState } from '../interaction/interactionState'
+import { interactionStateLabel } from '../interaction/interactionState'
 import type { GestureRuntimeSnapshot } from './cameraStatus'
 
 type Props = {
@@ -9,9 +11,11 @@ type Props = {
   pointerModeEnabled: boolean
   slideCacheDebug?: SlideCacheDebug | null
   isBlackScreen?: boolean
+  interactionState?: InteractionState
 }
 
 function phaseLabel(snapshot: GestureRuntimeSnapshot): string {
+  if (snapshot.heldGesture === 'v') return 'V Sign (hold)'
   if (snapshot.heldGesture === 'fist') return 'Fist (hold)'
   if (snapshot.heldGesture === 'ok') return 'OK Sign (hold)'
   if (snapshot.phase === 'swipe_candidate') return 'Swipe Candidate'
@@ -28,6 +32,7 @@ export function GestureDebugOverlay({
   pointerModeEnabled,
   slideCacheDebug,
   isBlackScreen = false,
+  interactionState = 'NORMAL',
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -61,6 +66,7 @@ export function GestureDebugOverlay({
       <p>Camera: {snapshot.cameraStatus}</p>
       <p>Hand: {snapshot.handDetected ? 'Detected' : 'Not detected'}</p>
       <p>Zoom: {presentationMode}</p>
+      <p>Interaction: {interactionStateLabel(interactionState)}</p>
       <p>Black Screen: {isBlackScreen ? 'ON' : 'OFF'}</p>
       <p>Gesture: {phaseLabel(snapshot)}</p>
       <p>Last command: {snapshot.lastCommand ?? '—'}</p>
@@ -72,15 +78,23 @@ export function GestureDebugOverlay({
           : '—'}
       </p>
       <p>Swipe dx: {snapshot.swipeDx.toFixed(3)} ({snapshot.swipeSamples})</p>
-      <p>Pointer mode: {pointerModeEnabled ? 'ON' : 'OFF'}</p>
-      <p>Pointer visible: {snapshot.pointerVisible ? 'yes' : 'no'}</p>
+      <p>Laser Pointer: {pointerModeEnabled ? 'ON' : 'OFF'}</p>
+      <p>Laser visible: {snapshot.pointerVisible ? 'yes' : 'no'}</p>
       <p>
-        Pointer pos:{' '}
+        Laser pos:{' '}
         {snapshot.pointerX != null && snapshot.pointerY != null
           ? `${snapshot.pointerX.toFixed(3)}, ${snapshot.pointerY.toFixed(3)}`
           : '—'}
       </p>
       <p>Inference: {snapshot.inferenceFps.toFixed(1)} fps</p>
+      <p>V detected: {snapshot.vSignDetected ? 'yes' : 'no'}</p>
+      <p>
+        V hold:{' '}
+        {snapshot.vSignHoldElapsedMs != null
+          ? `${Math.ceil(snapshot.vSignHoldElapsedMs)} ms`
+          : '—'}
+      </p>
+      <p>V cooldown: {Math.ceil(snapshot.interactionCooldownRemainingMs)} ms</p>
       {slideCacheDebug ? (
         <>
           <p>

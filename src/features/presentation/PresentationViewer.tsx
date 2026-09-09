@@ -5,6 +5,15 @@ import { GestureController } from '../gesture/GestureController'
 import { GestureDebugOverlay } from '../gesture/GestureDebugOverlay'
 import { GestureSettingsPanel } from '../gesture/GestureSettingsPanel'
 import { useGestureSettings } from '../gesture/useGestureSettings'
+import { handlePresentationIntent } from '../intent/applyPresentationIntent'
+import {
+  createNextSlideIntent,
+  createPreviousSlideIntent,
+  createToggleBlackScreenIntent,
+  createTogglePointerIntent,
+  type PresentationIntent,
+} from '../intent/presentationIntent'
+import { useInteractionState } from '../interaction/useInteractionState'
 import { mapKeyboardToCommand } from '../input/mapKeyboardToCommand'
 import { BlackScreenOverlay } from './BlackScreenOverlay'
 import { SlidePointer } from './SlidePointer'
@@ -37,11 +46,15 @@ const INITIAL_RUNTIME: GestureRuntimeSnapshot = {
   pointerX: null,
   pointerY: null,
   pointerVisible: false,
+  vSignDetected: false,
+  vSignHoldElapsedMs: null,
+  interactionCooldownRemainingMs: 0,
 }
 
 export function PresentationViewer({ pdfUrl, onExit }: Props) {
   const rootRef = useRef<HTMLElement>(null)
   const { pdfDocument, pageCount, error } = usePdfDocument(pdfUrl)
+  const { interactionState, isPointerMode, setPointerMode } = useInteractionState()
   const {
     page,
     setPageCount,
@@ -56,23 +69,34 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
     pointerY,
     pointerVisible,
     isBlackScreen,
-  } = usePresentationController({ onExit })
+  } = usePresentationController({
+    onExit,
+    onEnterZoom: useCallback(() => setPointerMode(false), [setPointerMode]),
+  })
   const {
     gestureEnabled,
     swipeSensitivity,
     cooldown,
     debugMode,
-    pointerModeEnabled,
     gestureConfig,
     setGestureEnabled,
     setSwipeSensitivity,
     setCooldown,
     setDebugMode,
-    setPointerModeEnabled,
     toggleDebugMode,
   } = useGestureSettings()
   const [runtime, setRuntime] = useState<GestureRuntimeSnapshot>(INITIAL_RUNTIME)
   const [slideCacheDebug, setSlideCacheDebug] = useState<SlideCacheDebug | null>(null)
+
+  const intentContext = { interactionState, mode, isBlackScreen }
+  const intentActions = { setPointerMode, hidePointer, dispatch }
+
+  const emitPresentationIntent = useCallback(
+    (intent: PresentationIntent) => {
+      handlePresentationIntent(intent, intentContext, intentActions)
+    },
+    [dispatch, hidePointer, interactionState, isBlackScreen, mode, setPointerMode],
+  )
 
   useEffect(() => {
     setPageCount(pageCount)
@@ -86,22 +110,30 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
       }
       if (event.key.toLowerCase() === 'p' && !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault()
-        if (pointerModeEnabled) {
-          setPointerModeEnabled(false)
-          hidePointer()
-        } else {
-          setPointerModeEnabled(true)
-        }
+        emitPresentationIntent(createTogglePointerIntent())
+        return
+      }
+      if (event.key.toLowerCase() === 'b' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault()
+        emitPresentationIntent(createToggleBlackScreenIntent())
         return
       }
       const command = mapKeyboardToCommand(event, { mode, isBlackScreen })
       if (!command) return
       event.preventDefault()
+      if (command === 'NEXT_SLIDE') {
+        emitPresentationIntent(createNextSlideIntent())
+        return
+      }
+      if (command === 'PREVIOUS_SLIDE') {
+        emitPresentationIntent(createPreviousSlideIntent())
+        return
+      }
       dispatch(command)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dispatch, hidePointer, isBlackScreen, mode, pointerModeEnabled, setPointerModeEnabled, toggleDebugMode])
+  }, [dispatch, emitPresentationIntent, isBlackScreen, mode, toggleDebugMode])
 
   useEffect(() => {
     const root = rootRef.current
@@ -153,7 +185,7 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
           pointer={
             !isBlackScreen &&
             mode === 'PRESENTATION' &&
-            pointerModeEnabled &&
+            isPointerMode &&
             pointerVisible ? (
               <SlidePointer x={pointerX} y={pointerY} />
             ) : null
@@ -172,19 +204,20 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
           swipeSensitivity={swipeSensitivity}
           cooldown={cooldown}
           debugMode={debugMode}
-          pointerModeEnabled={pointerModeEnabled}
+          pointerModeEnabled={isPointerMode}
           onSensitivityChange={setSwipeSensitivity}
           onCooldownChange={setCooldown}
           onDebugModeChange={setDebugMode}
           onPointerModeChange={(enabled) => {
-            setPointerModeEnabled(enabled)
-            if (!enabled) hidePointer()
+            if (enabled !== isPointerMode) {
+              emitPresentationIntent(createTogglePointerIntent())
+            }
           }}
         />
         <button
           type="button"
           className="black-screen-toggle"
-          onClick={() => dispatch('TOGGLE_BLACK_SCREEN')}
+          onClick={() => emitPresentationIntent(createToggleBlackScreenIntent())}
         >
           {isBlackScreen ? 'Black Screen OFF (B)' : 'Black Screen (B)'}
         </button>
@@ -194,9 +227,10 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
         <GestureDebugOverlay
           snapshot={runtime}
           presentationMode={mode}
-          pointerModeEnabled={pointerModeEnabled}
+          pointerModeEnabled={isPointerMode}
           slideCacheDebug={slideCacheDebug}
           isBlackScreen={isBlackScreen}
+          interactionState={interactionState}
         />
       ) : null}
 
@@ -204,7 +238,8 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
         enabled={gestureEnabled}
         gesturesActive={!isBlackScreen}
         gestureConfig={gestureConfig}
-        pointerModeEnabled={pointerModeEnabled}
+        interactionState={interactionState}
+        onPresentationIntent={emitPresentationIntent}
         onCommand={dispatch}
         showDebugOverlay={debugMode}
         presentationMode={mode}
@@ -222,7 +257,7 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
         <span>
           {page} / {pageCount}
           {mode === 'ZOOM' ? ' · ZOOM（スワイプ無効・グーで解除）' : ''}
-          {mode === 'PRESENTATION' && pointerModeEnabled ? ' · Pointer ON' : ''}
+          {mode === 'PRESENTATION' && isPointerMode ? ' · Laser Pointer ON' : ''}
         </span>
         {cameraError ? <span className="hud-error">{cameraError}</span> : null}
       </div>

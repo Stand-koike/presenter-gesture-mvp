@@ -35,6 +35,8 @@
 - [x] Pre-render next/previous page (Phase 5-B)
 - [x] Slide transition fade (Phase 5-C-1)
 - [x] Black screen (Phase 5-C-2)
+- [x] Interaction State foundation (Phase 5-C-3)
+- [x] V sign pointer toggle (Phase 5-C-4)
 - Better zoom centering
 
 ## Phase 6 — Distribution

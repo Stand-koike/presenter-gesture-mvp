@@ -9,12 +9,21 @@ import { assertHandLandmarkerModelExists, createHandLandmarker } from './createH
 import { GestureDebugPanel } from './GestureDebugPanel'
 import type { GestureConfig } from './gestureConfig'
 import { GestureRecognizer } from './gestureRecognizer'
+import type { InteractionState } from '../interaction/interactionState'
+import { routeInteractionCommands } from '../interaction/interactionRouter'
+import {
+  createNextSlideIntent,
+  createPreviousSlideIntent,
+  createTogglePointerIntent,
+  type PresentationIntent,
+} from '../intent/presentationIntent'
 
 type Props = {
   enabled?: boolean
   gesturesActive?: boolean
   gestureConfig: GestureConfig
-  pointerModeEnabled?: boolean
+  interactionState?: InteractionState
+  onPresentationIntent?: (intent: PresentationIntent) => void
   onCommand?: (command: PresentationCommand) => void
   showHomeDebug?: boolean
   showDebugOverlay?: boolean
@@ -42,13 +51,17 @@ const EMPTY_SNAPSHOT: GestureRuntimeSnapshot = {
   pointerX: null,
   pointerY: null,
   pointerVisible: false,
+  vSignDetected: false,
+  vSignHoldElapsedMs: null,
+  interactionCooldownRemainingMs: 0,
 }
 
 export function GestureController({
   enabled = true,
   gesturesActive = true,
   gestureConfig,
-  pointerModeEnabled = false,
+  interactionState: interactionStateProp,
+  onPresentationIntent,
   onCommand,
   showHomeDebug = false,
   showDebugOverlay = false,
@@ -58,23 +71,25 @@ export function GestureController({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const onCommandRef = useRef(onCommand)
+  const onPresentationIntentRef = useRef(onPresentationIntent)
   const onRuntimeErrorRef = useRef(onRuntimeError)
   const onStatusChangeRef = useRef(onStatusChange)
   const modeRef = useRef(presentationMode)
   const configRef = useRef(gestureConfig)
   const enabledRef = useRef(enabled)
   const gesturesActiveRef = useRef(gesturesActive)
-  const pointerModeRef = useRef(pointerModeEnabled)
+  const interactionStateRef = useRef<InteractionState>(interactionStateProp ?? 'NORMAL')
   const [homeDebug, setHomeDebug] = useState(EMPTY_SNAPSHOT)
 
   onCommandRef.current = onCommand
+  onPresentationIntentRef.current = onPresentationIntent
   onRuntimeErrorRef.current = onRuntimeError
   onStatusChangeRef.current = onStatusChange
   modeRef.current = presentationMode
   configRef.current = gestureConfig
   enabledRef.current = enabled
   gesturesActiveRef.current = gesturesActive
-  pointerModeRef.current = pointerModeEnabled
+  interactionStateRef.current = interactionStateProp ?? 'NORMAL'
 
   useEffect(() => {
     if (!enabled) {
@@ -117,6 +132,10 @@ export function GestureController({
         lastSnapshot.pointerX?.toFixed(3) === next.pointerX?.toFixed(3) &&
         lastSnapshot.pointerY?.toFixed(3) === next.pointerY?.toFixed(3) &&
         lastSnapshot.pointerVisible === next.pointerVisible &&
+        lastSnapshot.vSignDetected === next.vSignDetected &&
+        Math.ceil(lastSnapshot.vSignHoldElapsedMs ?? -1) === Math.ceil(next.vSignHoldElapsedMs ?? -1) &&
+        Math.ceil(lastSnapshot.interactionCooldownRemainingMs / 100) ===
+          Math.ceil(next.interactionCooldownRemainingMs / 100) &&
         lastSnapshot.landmarks === next.landmarks
       ) {
         return
@@ -200,15 +219,47 @@ export function GestureController({
           const result = landmarker.detectForVideo(video, now)
           const hand = result.landmarks?.[0] ?? null
           if (gesturesActiveRef.current) {
-            const command = recognizer.observe(hand, now, modeRef.current)
-            if (command) onCommandRef.current?.(command)
-
+            const interactionState = interactionStateRef.current
+            const navigationCommand = recognizer.observe(
+              hand,
+              now,
+              modeRef.current,
+              interactionState,
+            )
             const pointerCommand = recognizer.observePointer(
               hand,
               modeRef.current,
-              pointerModeRef.current,
+              interactionState,
             )
-            if (pointerCommand) onCommandRef.current?.(pointerCommand)
+            if (
+              modeRef.current === 'PRESENTATION' &&
+              recognizer.observeInteractionGesture(hand, now, modeRef.current) === 'toggle_pointer'
+            ) {
+              onPresentationIntentRef.current?.(createTogglePointerIntent())
+            }
+            for (const command of routeInteractionCommands(
+              interactionState,
+              navigationCommand,
+              pointerCommand,
+            )) {
+              if (command === 'NEXT_SLIDE') {
+                if (onPresentationIntentRef.current) {
+                  onPresentationIntentRef.current(createNextSlideIntent())
+                } else {
+                  onCommandRef.current?.(command)
+                }
+                continue
+              }
+              if (command === 'PREVIOUS_SLIDE') {
+                if (onPresentationIntentRef.current) {
+                  onPresentationIntentRef.current(createPreviousSlideIntent())
+                } else {
+                  onCommandRef.current?.(command)
+                }
+                continue
+              }
+              onCommandRef.current?.(command)
+            }
           }
 
           frameCount += 1
@@ -238,6 +289,9 @@ export function GestureController({
             pointerX: debug.pointerX,
             pointerY: debug.pointerY,
             pointerVisible: debug.pointerVisible,
+            vSignDetected: debug.vSignDetected,
+            vSignHoldElapsedMs: debug.vSignHoldElapsedMs,
+            interactionCooldownRemainingMs: debug.interactionCooldownRemainingMs,
           })
         } catch {
           const debug = recognizer.getDebug(false, now)
@@ -260,6 +314,9 @@ export function GestureController({
             pointerX: debug.pointerX,
             pointerY: debug.pointerY,
             pointerVisible: debug.pointerVisible,
+            vSignDetected: debug.vSignDetected,
+            vSignHoldElapsedMs: debug.vSignHoldElapsedMs,
+            interactionCooldownRemainingMs: debug.interactionCooldownRemainingMs,
           })
         }
       }
