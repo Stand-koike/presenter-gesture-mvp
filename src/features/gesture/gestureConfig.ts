@@ -31,6 +31,11 @@ export type GestureConfig = {
     deadzonePx: number
     emaAlpha: number
   }
+  pinchZoom: {
+    emaAlpha: number
+    deadzone: number
+    sensitivity: number
+  }
   pointer: {
     emaAlpha: number
     minMove: number
@@ -71,6 +76,11 @@ export const DEFAULT_GESTURE_CONFIG: GestureConfig = {
     smoothFrames: 5,
     deadzonePx: 0.8,
     emaAlpha: 0.22,
+  },
+  pinchZoom: {
+    emaAlpha: 0.28,
+    deadzone: 0.01,
+    sensitivity: 1.35,
   },
   pointer: {
     emaAlpha: 0.38,

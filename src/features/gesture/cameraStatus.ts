@@ -21,6 +21,8 @@ export type GestureRuntimeSnapshot = {
   swipeDx: number
   swipeSamples: number
   panActive: boolean
+  pinchZoomActive: boolean
+  pinchSpan: number | null
   landmarks: { x: number; y: number }[] | null
   pointerX: number | null
   pointerY: number | null

@@ -30,12 +30,13 @@ Presenters using a laptop in a room where a conventional clicker is inconvenient
 - Left swipe -> previous
 - OK sign -> enter zoom
 - Fist -> exit zoom (zoom mode only)
-- In zoom mode, hand movement -> pan
+- In zoom mode, thumb/index span -> zoom level; wrist movement -> pan
 - Laser Pointer (optional): index finger tip -> laser dot on slide (internal: Pointer mode / `MOVE_POINTER`)
 
 ## 6.1 Zoom (Phase 5-D-2)
 - Enter: Keyboard `Z` or OK sign gesture
-- Default zoom scale: **2x** (MVP; range 1x–3x in constants, no in-session scale change UI)
+- Default zoom scale: **2x** (MVP; range 1x–3x)
+- After enter: thumb–index span adjusts scale continuously (`ZOOM_DELTA`); pan still uses wrist motion
 - Pan: wrist movement in zoom mode only; swipe navigation is disabled in zoom mode
 - Exit: Fist gesture (zoom mode only) or `Escape` (first priority while zoomed)
 - On exit: `PresentationMode` returns to `PRESENTATION`, scale **1x**, pan **(0, 0)**

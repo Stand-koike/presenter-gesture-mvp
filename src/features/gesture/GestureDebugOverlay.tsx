@@ -19,6 +19,7 @@ function phaseLabel(snapshot: GestureRuntimeSnapshot): string {
   if (snapshot.heldGesture === 'fist') return 'Fist (hold)'
   if (snapshot.heldGesture === 'ok') return 'OK Sign (hold)'
   if (snapshot.phase === 'swipe_candidate') return 'Swipe Candidate'
+  if (snapshot.phase === 'pinch_zoom') return 'Pinch Zoom'
   if (snapshot.phase === 'pan') return 'Pan'
   if (snapshot.phase === 'cooldown') return 'Cooldown'
   if (snapshot.phase === 'gesture_hold') return 'Confirmed Hold'
@@ -78,6 +79,8 @@ export function GestureDebugOverlay({
           : '—'}
       </p>
       <p>Swipe dx: {snapshot.swipeDx.toFixed(3)} ({snapshot.swipeSamples})</p>
+      <p>Pinch zoom: {snapshot.pinchZoomActive ? 'yes' : 'no'}</p>
+      <p>Pinch span: {snapshot.pinchSpan != null ? snapshot.pinchSpan.toFixed(3) : '—'}</p>
       <p>Laser Pointer: {pointerModeEnabled ? 'ON' : 'OFF'}</p>
       <p>Laser visible: {snapshot.pointerVisible ? 'yes' : 'no'}</p>
       <p>

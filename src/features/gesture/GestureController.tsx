@@ -47,6 +47,8 @@ const EMPTY_SNAPSHOT: GestureRuntimeSnapshot = {
   swipeDx: 0,
   swipeSamples: 0,
   panActive: false,
+  pinchZoomActive: false,
+  pinchSpan: null,
   landmarks: null,
   pointerX: null,
   pointerY: null,
@@ -125,6 +127,10 @@ export function GestureController({
         lastSnapshot.heldGesture === next.heldGesture &&
         lastSnapshot.lastCommand === next.lastCommand &&
         lastSnapshot.panActive === next.panActive &&
+        lastSnapshot.pinchZoomActive === next.pinchZoomActive &&
+        (lastSnapshot.pinchSpan == null && next.pinchSpan == null
+          ? true
+          : Math.abs((lastSnapshot.pinchSpan ?? 0) - (next.pinchSpan ?? 0)) < 0.01) &&
         Math.abs(lastSnapshot.swipeDx - next.swipeDx) < 0.01 &&
         lastSnapshot.swipeSamples === next.swipeSamples &&
         lastSnapshot.handX?.toFixed(3) === next.handX?.toFixed(3) &&
@@ -283,6 +289,8 @@ export function GestureController({
             heldGesture: debug.heldGesture,
             lastCommand: debug.lastCommand,
             panActive: debug.panActive,
+            pinchZoomActive: debug.pinchZoomActive,
+            pinchSpan: debug.pinchSpan,
             swipeDx: debug.swipeDx,
             swipeSamples: debug.swipeSamples,
             landmarks: hand ? hand.map((p) => ({ x: p.x, y: p.y })) : null,
@@ -308,6 +316,8 @@ export function GestureController({
             heldGesture: debug.heldGesture,
             lastCommand: debug.lastCommand,
             panActive: false,
+            pinchZoomActive: false,
+            pinchSpan: null,
             swipeDx: debug.swipeDx,
             swipeSamples: debug.swipeSamples,
             landmarks: null,
