@@ -26,7 +26,7 @@ PAN commands are not affected by discrete cooldown.
 
 ## G01 Right Swipe
 Action: `NEXT_SLIDE`
-- **Hand pose**: open palm (パー, four fingers extended) or fist (グー) for the entire swipe trajectory; other shapes do not accumulate swipe motion
+- **Hand pose**: open palm (パー, four fingers extended) for the entire swipe trajectory; other shapes do not accumulate swipe motion
 - Wrist landmark 0, normalized coordinates (X mirrored for webcam)
 - Horizontal displacement >= `swipe.minDx` (Medium default: 0.12)
 - Vertical movement smaller than horizontal
@@ -37,7 +37,7 @@ Action: `NEXT_SLIDE`
 
 ## G02 Left Swipe
 Action: `PREVIOUS_SLIDE`
-- Same rules as G01 (including グー/パー pose), negative horizontal direction
+- Same rules as G01 (パー pose required), negative horizontal direction
 - **Disabled in ZOOM mode**
 
 ## G03 OK Sign

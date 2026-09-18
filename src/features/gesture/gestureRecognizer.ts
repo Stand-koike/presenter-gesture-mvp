@@ -656,9 +656,9 @@ function isOpenPalm(hand: LandmarkPoint[], config: GestureConfig): boolean {
   )
 }
 
-/** Slide navigation requires a deliberate hand shape (グー or パー), not arbitrary wrist motion. */
+/** Slide navigation requires open palm (パー), not arbitrary wrist motion. */
 function isSwipeNavigationPose(hand: LandmarkPoint[], config: GestureConfig): boolean {
-  return isFist(hand, config) || isOpenPalm(hand, config)
+  return isOpenPalm(hand, config)
 }
 
 function isMostlyMonotonic(samples: Sample[], direction: 1 | -1, minRatio: number): boolean {
