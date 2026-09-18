@@ -175,7 +175,7 @@ export class GestureRecognizer {
     }
 
     // Normal mode: active swipe motion blocks pose gestures
-    this.recordSwipeSample(mirroredX, mirroredY, now)
+    this.recordSwipeSample(mirroredX, mirroredY, now, landmarks)
     if (this.isSwipeMotionActive()) {
       this.heldGesture = null
       this.resetPoseHoldState()
@@ -480,7 +480,17 @@ export class GestureRecognizer {
     this.lastSwipeDx = 0
   }
 
-  private recordSwipeSample(x: number, y: number, now: number) {
+  private recordSwipeSample(
+    x: number,
+    y: number,
+    now: number,
+    landmarks: LandmarkPoint[],
+  ) {
+    if (!isSwipeNavigationPose(landmarks, this.config)) {
+      this.samples = []
+      this.lastSwipeDx = 0
+      return
+    }
     this.samples.push({ x, y, t: now })
     this.samples = this.samples.filter((sample) => now - sample.t <= this.config.swipe.maxDurationMs)
   }
@@ -632,6 +642,23 @@ function isFist(hand: LandmarkPoint[], config: GestureConfig): boolean {
     isFingerFolded(hand, RING, config) &&
     isFingerFolded(hand, PINKY, config)
   )
+}
+
+/** Open palm (パー): four fingers extended — distinct from OK (index curled) and V (two fingers). */
+function isOpenPalm(hand: LandmarkPoint[], config: GestureConfig): boolean {
+  if (hand.length < 21) return false
+  if (isOkSign(hand, config)) return false
+  return (
+    isFingerExtended(hand, INDEX, config) &&
+    isFingerExtended(hand, MIDDLE, config) &&
+    isFingerExtended(hand, RING, config) &&
+    isFingerExtended(hand, PINKY, config)
+  )
+}
+
+/** Slide navigation requires a deliberate hand shape (グー or パー), not arbitrary wrist motion. */
+function isSwipeNavigationPose(hand: LandmarkPoint[], config: GestureConfig): boolean {
+  return isFist(hand, config) || isOpenPalm(hand, config)
 }
 
 function isMostlyMonotonic(samples: Sample[], direction: 1 | -1, minRatio: number): boolean {
