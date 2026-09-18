@@ -63,7 +63,17 @@ Action: `PAN { dx, dy }`
 - Active only in ZOOM mode
 - Wrist displacement with EMA smoothing + dead zone
 - **Swipe page navigation is disabled while zoomed**
+- Skipped on frames where pinch-zoom (`ZOOM_DELTA`) is active, so finger span changes do not also pan
 - Keyboard NEXT/PREV while zoomed exits zoom before page change (Controller)
+
+## G08 Pinch Zoom (in ZOOM mode)
+Action: `ZOOM_DELTA { dScale }`
+- Active only after zoom is already on (`OK` / `Z` → default 2x)
+- Palm-normalized thumb–index distance; opening increases scale, closing decreases
+- Scale stays in `MIN_ZOOM`–`MAX_ZOOM` (1x–3x); 1x does **not** exit zoom
+- EMA + dead zone; not affected by discrete cooldown (baseline is seeded during cooldown after `ENTER_ZOOM` so the OK pinch does not jump the scale)
+- Fist still wins over pinch; pinch-zoom requires middle/ring/pinky extended (same family as OK) so a forming fist does not change scale
+- Depth: distance is divided by palm size so moving the hand toward the camera is less likely to zoom
 
 ## Priority
 
@@ -76,9 +86,10 @@ Action: `PAN { dx, dy }`
 
 ### ZOOM mode
 1. Fist → EXIT_ZOOM
-2. Pan (continuous)
-3. Swipe disabled
-4. Laser Pointer hidden
+2. Pinch span change → ZOOM_DELTA (continuous scale)
+3. Pan (continuous; when pinch is stable)
+4. Swipe disabled
+5. Laser Pointer hidden
 
 ## G07 V Sign — Laser Pointer Toggle (Phase 5-C-4)
 Action: toggle `NORMAL` ↔ `POINTER` via `TOGGLE_POINTER` PresentationIntent (P key / UI / V sign share the same intent path)

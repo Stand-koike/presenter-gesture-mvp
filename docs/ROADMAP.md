@@ -17,6 +17,7 @@
 - [x] OK Sign → ENTER_ZOOM
 - [x] Fist → EXIT_ZOOM
 - [x] Hand Pan in zoom mode
+- [x] Pinch zoom (thumb–index) while zoomed
 - [x] Swipe disabled in zoom mode
 
 ## Phase 4 — UX & tuning

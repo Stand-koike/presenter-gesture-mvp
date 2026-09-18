@@ -10,6 +10,7 @@ type Props = {
 function phaseLabel(snapshot: GestureRuntimeSnapshot): string {
   if (snapshot.heldGesture === 'fist') return 'Fist'
   if (snapshot.heldGesture === 'ok') return 'OK Sign'
+  if (snapshot.phase === 'pinch_zoom') return 'Pinch Zoom'
   if (snapshot.phase === 'pan') return 'Pan'
   if (snapshot.phase === 'swipe_candidate') return 'Swipe Candidate'
   if (snapshot.phase === 'gesture_hold') return 'Confirmed Hold'
@@ -31,6 +32,7 @@ export function GestureDebugPanel({ snapshot, presentationMode }: Props) {
       <p>Mode: {presentationMode}</p>
       <p>Gesture: {phaseLabel(snapshot)}</p>
       <p>Swipe dx: {snapshot.swipeDx.toFixed(3)} ({snapshot.swipeSamples} samples)</p>
+      <p>Pinch zoom: {snapshot.pinchZoomActive ? 'yes' : 'no'}</p>
       <p>Cooldown: {Math.ceil(snapshot.cooldownRemainingMs)} ms</p>
       <p>Last command: {lastLabel}</p>
       {snapshot.errorMessage ? <p className="error">{snapshot.errorMessage}</p> : null}

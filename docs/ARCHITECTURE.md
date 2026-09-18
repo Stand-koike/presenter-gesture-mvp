@@ -86,6 +86,7 @@ GestureRecognizer
 ### Zoom behavior (Phase 5-D-2)
 
 - Enter: Keyboard `Z` or OK sign → `ENTER_ZOOM` → default **2x** scale
+- While zoomed: thumb–index distance → `ZOOM_DELTA` (1x–3x); wrist → `PAN`
 - Exit: Fist or `Escape` → scale 1, pan 0
 - **NEXT/PREV via `dispatch`**: if `PresentationMode === 'ZOOM'`, `resetZoomState()` runs before page change (same end state as exit zoom)
 - **Enter zoom**: `hidePointer()` + `onEnterZoom()` callback → InteractionState `NORMAL` (Pointer mode off)
@@ -127,7 +128,7 @@ Input / Gesture
 
 - Interaction intents (e.g. `TOGGLE_POINTER`) are resolved against current `InteractionState`
 - Presentation intents wrap existing `PresentationCommand` values (no duplicate command strings)
-- Streaming commands (`MOVE_POINTER`, `PAN`) bypass the intent layer: `interactionRouter` → `dispatch()`
+- Streaming commands (`MOVE_POINTER`, `PAN`, `ZOOM_DELTA`) bypass the intent layer: `interactionRouter` → `dispatch()`
 - P key, UI checkbox, and V sign all emit the same `TOGGLE_POINTER` interaction intent
 
 ## Security

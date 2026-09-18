@@ -6,6 +6,11 @@ export type PanCommand = {
   dy: number
 }
 
+export type ZoomDeltaCommand = {
+  type: 'ZOOM_DELTA'
+  dScale: number
+}
+
 export type MovePointerCommand = {
   type: 'MOVE_POINTER'
   x: number
@@ -25,10 +30,15 @@ export type PresentationCommand =
   | 'EXIT_ZOOM'
   | 'TOGGLE_BLACK_SCREEN'
   | PanCommand
+  | ZoomDeltaCommand
   | MovePointerCommand
 
 export function isPanCommand(command: PresentationCommand): command is PanCommand {
   return typeof command === 'object' && command.type === 'PAN'
+}
+
+export function isZoomDeltaCommand(command: PresentationCommand): command is ZoomDeltaCommand {
+  return typeof command === 'object' && command.type === 'ZOOM_DELTA'
 }
 
 export function isMovePointerCommand(command: PresentationCommand): command is MovePointerCommand {
@@ -37,6 +47,7 @@ export function isMovePointerCommand(command: PresentationCommand): command is M
 
 export function commandLabel(command: PresentationCommand): string {
   if (isPanCommand(command)) return 'PAN'
+  if (isZoomDeltaCommand(command)) return 'ZOOM_DELTA'
   if (isMovePointerCommand(command)) {
     return command.visible ? 'MOVE_POINTER' : 'HIDE_POINTER'
   }

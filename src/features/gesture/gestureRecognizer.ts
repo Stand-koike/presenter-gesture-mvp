@@ -22,6 +22,7 @@ export type GesturePhase =
   | 'gesture_hold'
   | 'cooldown'
   | 'pan'
+  | 'pinch_zoom'
 
 export type LandmarkPoint = {
   x: number
@@ -40,6 +41,8 @@ export type GestureDebugSnapshot = {
   handDetected: boolean
   lastCommand: string | null
   panActive: boolean
+  pinchZoomActive: boolean
+  pinchSpan: number | null
   heldGesture: 'ok' | 'fist' | 'v' | null
   swipeDx: number
   swipeSamples: number
@@ -69,6 +72,9 @@ export class GestureRecognizer {
   private cooldownUntil = 0
   private lastCommand: PresentationCommand | null = null
   private panActive = false
+  private pinchZoomActive = false
+  private pinchEma: number | null = null
+  private lastPinchSpan: number | null = null
   private heldGesture: 'ok' | 'fist' | 'v' | null = null
   private prevMode: PresentationMode = 'PRESENTATION'
   private lastSwipeDx = 0
@@ -125,6 +131,7 @@ export class GestureRecognizer {
       this.panHistory = []
       this.panEma = { dx: 0, dy: 0 }
       this.panActive = false
+      this.resetPinchZoomState()
       this.phase = 'idle'
       return null
     }
@@ -136,6 +143,7 @@ export class GestureRecognizer {
       this.resetHandTracking()
       this.phase = inDiscreteCooldown ? 'cooldown' : 'idle'
       this.panActive = false
+      this.resetPinchZoomState()
       this.lastHandX = null
       this.lastHandY = null
       return null
@@ -150,10 +158,12 @@ export class GestureRecognizer {
       this.phase = 'cooldown'
       this.updatePoseLatches(landmarks)
       if (mode === 'ZOOM' && !isFist(landmarks, this.config)) {
+        this.seedPinchZoom(landmarks)
         return this.observePan(mirroredX, mirroredY)
       }
       this.prevWrist = { x: mirroredX, y: mirroredY }
       this.panActive = false
+      this.resetPinchZoomState()
       return null
     }
 
@@ -163,14 +173,23 @@ export class GestureRecognizer {
       this.lastSwipeDx = 0
     }
 
-    // Zoom mode: Fist → Pan (swipe disabled)
+    // Zoom mode: Fist → pinch zoom → Pan (swipe disabled)
     if (mode === 'ZOOM') {
       if (isFist(landmarks, this.config)) {
+        this.resetPinchZoomState()
         return this.observeFist(mirroredX, mirroredY, now, mode)
       }
       this.fistHoldStart = null
       this.fistLatched = false
       this.fistStableFrames = 0
+      const pinchCommand = this.observePinchZoom(landmarks)
+      if (pinchCommand) {
+        this.prevWrist = { x: mirroredX, y: mirroredY }
+        this.panHistory = []
+        this.panEma = { dx: 0, dy: 0 }
+        this.panActive = false
+        return pinchCommand
+      }
       return this.observePan(mirroredX, mirroredY)
     }
 
@@ -183,6 +202,7 @@ export class GestureRecognizer {
       this.panHistory = []
       this.panEma = { dx: 0, dy: 0 }
       this.panActive = false
+      this.resetPinchZoomState()
       return this.evaluateSwipe(now)
     }
 
@@ -202,6 +222,7 @@ export class GestureRecognizer {
     this.panHistory = []
     this.panEma = { dx: 0, dy: 0 }
     this.panActive = false
+    this.resetPinchZoomState()
     return this.evaluateSwipe(now)
   }
 
@@ -211,6 +232,8 @@ export class GestureRecognizer {
       handDetected,
       lastCommand: this.lastCommand ? commandLabel(this.lastCommand) : null,
       panActive: this.panActive,
+      pinchZoomActive: this.pinchZoomActive,
+      pinchSpan: this.lastPinchSpan,
       heldGesture: this.heldGesture,
       swipeDx: this.lastSwipeDx,
       swipeSamples: this.samples.length,
@@ -414,13 +437,17 @@ export class GestureRecognizer {
     return null
   }
 
-  private emitDiscrete(command: Exclude<PresentationCommand, { type: 'PAN' }>, now: number): PresentationCommand {
+  private emitDiscrete(
+    command: Exclude<PresentationCommand, { type: 'PAN' } | { type: 'ZOOM_DELTA' } | { type: 'MOVE_POINTER' }>,
+    now: number,
+  ): PresentationCommand {
     this.lastCommand = command
     this.cooldownUntil = now + this.config.discreteCooldownMs
     this.phase = 'cooldown'
     this.samples = []
     this.lastSwipeDx = 0
     this.panActive = false
+    this.resetPinchZoomState()
     return command
   }
 
@@ -461,6 +488,7 @@ export class GestureRecognizer {
     this.panHistory = []
     this.panEma = { dx: 0, dy: 0 }
     this.panActive = false
+    this.resetPinchZoomState()
     this.lastSwipeDx = 0
     this.pointerEma = null
     this.pointerSentVisible = false
@@ -478,6 +506,7 @@ export class GestureRecognizer {
     this.panHistory = []
     this.panEma = { dx: 0, dy: 0 }
     this.lastSwipeDx = 0
+    this.resetPinchZoomState()
   }
 
   private recordSwipeSample(
@@ -585,6 +614,56 @@ export class GestureRecognizer {
     this.panActive = true
     return { type: 'PAN', dx, dy }
   }
+
+  private seedPinchZoom(hand: LandmarkPoint[]) {
+    const span = pinchZoomSpan(hand, this.config)
+    if (span == null) {
+      this.resetPinchZoomState()
+      return
+    }
+    this.lastPinchSpan = span
+    this.pinchEma = span
+    this.pinchZoomActive = false
+  }
+
+  private observePinchZoom(hand: LandmarkPoint[]): PresentationCommand | null {
+    const { pinchZoom } = this.config
+    const span = pinchZoomSpan(hand, this.config)
+    if (span == null) {
+      this.resetPinchZoomState()
+      return null
+    }
+
+    this.lastPinchSpan = span
+    if (this.pinchEma == null) {
+      this.pinchEma = span
+      this.pinchZoomActive = false
+      return null
+    }
+
+    const previous = this.pinchEma
+    this.pinchEma = previous * (1 - pinchZoom.emaAlpha) + span * pinchZoom.emaAlpha
+    const delta = this.pinchEma - previous
+    if (Math.abs(delta) < pinchZoom.deadzone) {
+      this.pinchZoomActive = false
+      return null
+    }
+
+    this.pinchZoomActive = true
+    this.phase = 'pinch_zoom'
+    const command: PresentationCommand = {
+      type: 'ZOOM_DELTA',
+      dScale: delta * pinchZoom.sensitivity,
+    }
+    this.lastCommand = command
+    return command
+  }
+
+  private resetPinchZoomState() {
+    this.pinchEma = null
+    this.pinchZoomActive = false
+    this.lastPinchSpan = null
+  }
 }
 
 function distance(a: LandmarkPoint, b: LandmarkPoint): number {
@@ -593,6 +672,23 @@ function distance(a: LandmarkPoint, b: LandmarkPoint): number {
 
 function palmSize(hand: LandmarkPoint[], config: GestureConfig): number {
   return Math.max(distance(hand[WRIST_LANDMARK_INDEX], hand[MIDDLE.mcp]), 0.08)
+}
+
+function normalizedPinchSpan(hand: LandmarkPoint[], config: GestureConfig): number | null {
+  if (hand.length < 21) return null
+  return distance(hand[THUMB_TIP], hand[INDEX.tip]) / palmSize(hand, config)
+}
+
+/** OK-family pose: middle/ring/pinky extended so pinch-zoom does not fight fist-to-exit. */
+function pinchZoomSpan(hand: LandmarkPoint[], config: GestureConfig): number | null {
+  if (
+    !isFingerExtended(hand, MIDDLE, config) ||
+    !isFingerExtended(hand, RING, config) ||
+    !isFingerExtended(hand, PINKY, config)
+  ) {
+    return null
+  }
+  return normalizedPinchSpan(hand, config)
 }
 
 function isFingerExtended(

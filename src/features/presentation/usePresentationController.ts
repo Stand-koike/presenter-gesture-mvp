@@ -3,6 +3,7 @@ import { clampPan, type SlideViewport } from './clampPan'
 import {
   isMovePointerCommand,
   isPanCommand,
+  isZoomDeltaCommand,
   type PresentationCommand,
   type PresentationMode,
 } from './commands'
@@ -128,6 +129,22 @@ export function usePresentationController({ onExit, onEnterZoom }: Options) {
       panRef.current = next
       setPanX(next.x)
       setPanY(next.y)
+      return
+    }
+
+    if (isZoomDeltaCommand(command)) {
+      if (isBlackScreenRef.current || modeRef.current !== 'ZOOM') return
+      if (!Number.isFinite(command.dScale) || command.dScale === 0) return
+      const nextScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current + command.dScale))
+      if (nextScale === zoomRef.current) return
+      zoomRef.current = nextScale
+      setZoomScale(nextScale)
+      const clamped = clampPan(panRef.current.x, panRef.current.y, nextScale, viewportRef.current)
+      if (clamped.x !== panRef.current.x || clamped.y !== panRef.current.y) {
+        panRef.current = clamped
+        setPanX(clamped.x)
+        setPanY(clamped.y)
+      }
       return
     }
 

@@ -42,6 +42,8 @@ const INITIAL_RUNTIME: GestureRuntimeSnapshot = {
   swipeDx: 0,
   swipeSamples: 0,
   panActive: false,
+  pinchZoomActive: false,
+  pinchSpan: null,
   landmarks: null,
   pointerX: null,
   pointerY: null,
@@ -256,7 +258,7 @@ export function PresentationViewer({ pdfUrl, onExit }: Props) {
       <div className={`hud${isBlackScreen ? ' hud--hidden' : ''}`}>
         <span>
           {page} / {pageCount}
-          {mode === 'ZOOM' ? ' · ZOOM（スワイプ無効・グーで解除）' : ''}
+          {mode === 'ZOOM' ? ' · ZOOM（ピンチで倍率・パン可・グーで解除）' : ''}
           {mode === 'PRESENTATION' && isPointerMode ? ' · Laser Pointer ON' : ''}
         </span>
         {cameraError ? <span className="hud-error">{cameraError}</span> : null}
