@@ -1,14 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { GestureController } from './features/gesture/GestureController'
 import { useGestureSettings } from './features/gesture/useGestureSettings'
-import { OtohiroiGame } from './features/game/OtohiroiGame'
 import { PresentationViewer } from './features/presentation/PresentationViewer'
-
-type HomeScreen = 'home' | 'game'
 
 export function App() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [homeScreen, setHomeScreen] = useState<HomeScreen>('home')
   const inputRef = useRef<HTMLInputElement>(null)
   const { gestureConfig } = useGestureSettings()
 
@@ -30,10 +26,6 @@ export function App() {
     )
   }
 
-  if (homeScreen === 'game') {
-    return <OtohiroiGame onBack={() => setHomeScreen('home')} />
-  }
-
   return (
     <main className="app home">
       <section className="home-card">
@@ -51,14 +43,9 @@ export function App() {
             void document.documentElement.requestFullscreen().catch(() => {})
           }}
         />
-        <div className="home-actions">
-          <button className="primary" type="button" onClick={openPdf}>
-            PDFを開く
-          </button>
-          <button className="secondary" type="button" onClick={() => setHomeScreen('game')}>
-            おとひろい
-          </button>
-        </div>
+        <button className="primary" type="button" onClick={openPdf}>
+          PDFを開く
+        </button>
         <GestureController
           enabled
           gestureConfig={gestureConfig}
