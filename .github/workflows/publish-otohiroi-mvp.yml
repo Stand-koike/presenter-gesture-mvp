@@ -1,5 +1,4 @@
 # おとひろい専用リポジトリへミラーする（手動実行）
-# presenter のトークンは otohiroi-mvp- に書けないため、PAT を Secrets に登録して使う
 name: Publish to otohiroi-mvp-
 
 on:
@@ -20,11 +19,17 @@ jobs:
 
       - name: Push to otohiroi-mvp-
         env:
-          PUSH_TOKEN: ${{ secrets.OTOHIROI_MVP_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.OTOHIROI_MVP_PUSH_TOKEN }}
         run: |
-          if [ -z "$PUSH_TOKEN" ]; then
-            echo "::error::Secrets に OTOHIROI_MVP_PUSH_TOKEN が未設定です"
+          set -euo pipefail
+          TOKEN="$(printf '%s' "$GH_TOKEN" | tr -d '\n\r\t ')"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Secrets に OTOHIROI_MVP_PUSH_TOKEN が未設定、または空です"
             exit 1
           fi
-          git remote add dest "https://x-access-token:${PUSH_TOKEN}@github.com/Stand-koike/otohiroi-mvp-.git"
+          printf '%s\n' "$TOKEN" | gh auth login --with-token
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add dest https://github.com/Stand-koike/otohiroi-mvp-.git
           git push dest HEAD:main --force

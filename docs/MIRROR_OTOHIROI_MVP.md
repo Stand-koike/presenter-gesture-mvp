@@ -9,6 +9,8 @@ Cloud Agent（`cursor[bot]`）は **`presenter-gesture-mvp` にしか push で�
 3. **New repository secret**
    - Name: `OTOHIROI_MVP_PUSH_TOKEN`
    - Value: [Fine-grained PAT](https://github.com/settings/tokens?type=beta)（Repository: `otohiroi-mvp-`、Contents: Read and write）
+   - **コピー時に前後の空白・改行を入れない**（入れると `Malformed input to a URL` で失敗します）
+   - Classic PAT でも可（`repo` スコープ、または当該リポジトリへの write）
 4. **Actions** → **Publish to otohiroi-mvp-** → **Run workflow**
 
 成功すると https://github.com/Stand-koike/otohiroi-mvp- の `main` が埋まります。
