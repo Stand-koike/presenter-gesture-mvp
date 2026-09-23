@@ -71,7 +71,9 @@ Action: `ZOOM_DELTA { dScale }`
 - Active only after zoom is already on (`OK` / `Z` → default 2x)
 - Palm-normalized thumb–index distance; opening increases scale, closing decreases
 - Scale stays in `MIN_ZOOM`–`MAX_ZOOM` (1x–3x); 1x does **not** exit zoom
-- EMA + dead zone; not affected by discrete cooldown (baseline is seeded during cooldown after `ENTER_ZOOM` so the OK pinch does not jump the scale)
+- Heavy EMA, hysteresis dead zone (engage / release), same-direction confirmation, per-frame cap, and **0.05 scale snaps** so landmark jitter does not crawl the zoom
+- Only the excess past the dead zone is applied (noise floor is not integrated)
+- Not affected by discrete cooldown (baseline is seeded during cooldown after `ENTER_ZOOM` so the OK pinch does not jump the scale)
 - Fist still wins over pinch; pinch-zoom requires middle/ring/pinky extended (same family as OK) so a forming fist does not change scale
 - Depth: distance is divided by palm size so moving the hand toward the camera is less likely to zoom
 

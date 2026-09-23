@@ -74,6 +74,10 @@ export class GestureRecognizer {
   private panActive = false
   private pinchZoomActive = false
   private pinchEma: number | null = null
+  private pinchEngaged = false
+  private pinchConfirmSign: 1 | -1 | 0 = 0
+  private pinchConfirmFrames = 0
+  private pinchRemainder = 0
   private lastPinchSpan: number | null = null
   private heldGesture: 'ok' | 'fist' | 'v' | null = null
   private prevMode: PresentationMode = 'PRESENTATION'
@@ -623,6 +627,10 @@ export class GestureRecognizer {
     }
     this.lastPinchSpan = span
     this.pinchEma = span
+    this.pinchEngaged = false
+    this.pinchConfirmSign = 0
+    this.pinchConfirmFrames = 0
+    this.pinchRemainder = 0
     this.pinchZoomActive = false
   }
 
@@ -644,16 +652,58 @@ export class GestureRecognizer {
     const previous = this.pinchEma
     this.pinchEma = previous * (1 - pinchZoom.emaAlpha) + span * pinchZoom.emaAlpha
     const delta = this.pinchEma - previous
-    if (Math.abs(delta) < pinchZoom.deadzone) {
+    const absDelta = Math.abs(delta)
+    const sign: 1 | -1 | 0 = delta > 0 ? 1 : delta < 0 ? -1 : 0
+
+    if (!this.pinchEngaged) {
+      if (absDelta < pinchZoom.deadzone || sign === 0) {
+        this.pinchConfirmSign = 0
+        this.pinchConfirmFrames = 0
+        this.pinchZoomActive = false
+        return null
+      }
+      if (sign !== this.pinchConfirmSign) {
+        this.pinchConfirmSign = sign
+        this.pinchConfirmFrames = 1
+        this.pinchZoomActive = false
+        return null
+      }
+      this.pinchConfirmFrames += 1
+      if (this.pinchConfirmFrames < pinchZoom.confirmFrames) {
+        this.pinchZoomActive = false
+        return null
+      }
+      this.pinchEngaged = true
+    } else if (absDelta < pinchZoom.releaseDeadzone) {
+      this.pinchEngaged = false
+      this.pinchConfirmSign = 0
+      this.pinchConfirmFrames = 0
       this.pinchZoomActive = false
       return null
     }
 
+    const floor = this.pinchEngaged ? pinchZoom.releaseDeadzone : pinchZoom.deadzone
+    const excess = sign * Math.max(0, absDelta - floor)
+    if (excess === 0) {
+      this.pinchZoomActive = false
+      return null
+    }
+
+    const capped = Math.min(pinchZoom.maxDScale, Math.max(-pinchZoom.maxDScale, excess * pinchZoom.sensitivity))
+    this.pinchRemainder += capped
+    if (Math.abs(this.pinchRemainder) < pinchZoom.snap) {
+      this.pinchZoomActive = false
+      return null
+    }
+
+    const steps = Math.trunc(this.pinchRemainder / pinchZoom.snap)
+    const dScale = steps * pinchZoom.snap
+    this.pinchRemainder -= dScale
     this.pinchZoomActive = true
     this.phase = 'pinch_zoom'
     const command: PresentationCommand = {
       type: 'ZOOM_DELTA',
-      dScale: delta * pinchZoom.sensitivity,
+      dScale,
     }
     this.lastCommand = command
     return command
@@ -661,6 +711,10 @@ export class GestureRecognizer {
 
   private resetPinchZoomState() {
     this.pinchEma = null
+    this.pinchEngaged = false
+    this.pinchConfirmSign = 0
+    this.pinchConfirmFrames = 0
+    this.pinchRemainder = 0
     this.pinchZoomActive = false
     this.lastPinchSpan = null
   }
